@@ -61,7 +61,9 @@ func registerComputer(comp Computer) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost:8080/register", bytes.NewBuffer(jsonData))
+	// Указываем IP-адрес сервера 37.46.230.242
+	serverURL := "http://37.46.230.242:8080/register"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, serverURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		log.Fatalf("Ошибка при создании запроса: %v", err)
 	}
