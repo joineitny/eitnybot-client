@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -21,20 +21,35 @@ type Computer struct {
 }
 
 func main() {
-	if len(os.Args) < 6 {
-		fmt.Println("Использование: client <ID> <IP> <Port> <Username> <Password>")
-		return
+	// Автоматическое определение IP-адреса
+	ip, err := getLocalIP()
+	if err != nil {
+		log.Fatalf("Не удалось определить IP-адрес: %v", err)
 	}
 
 	comp := Computer{
-		ID:       os.Args[1],
-		IP:       os.Args[2],
-		Port:     os.Args[3],
-		Username: os.Args[4],
-		Password: os.Args[5],
+		IP: ip,
 	}
 
 	registerComputer(comp)
+}
+
+// Функция для получения локального IP-адреса
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String(), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("не удалось определить IP-адрес")
 }
 
 func registerComputer(comp Computer) {
@@ -63,5 +78,13 @@ func registerComputer(comp Computer) {
 		log.Fatalf("Сервер вернул ошибку: %s, тело ответа: %s", resp.Status, string(body))
 	}
 
-	log.Println("Компьютер успешно зарегистрирован на сервере")
+	// Чтение ответа от сервера
+	var response struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		log.Fatalf("Ошибка при чтении ответа от сервера: %v", err)
+	}
+
+	log.Printf("Ответ от сервера: %s\n", response.Message)
 }
