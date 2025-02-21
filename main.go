@@ -7,51 +7,55 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"time"
 )
 
 type Computer struct {
 	ID       string `json:"id"`
-	IP       string `json:"ip"`
-	Port     string `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	IP       string `json:"ip"`       // Внешний IP-адрес
+	Port     string `json:"port"`     // Порт для подключения
+	Username string `json:"username"` // Имя пользователя
+	Password string `json:"password"` // Пароль
 }
 
 func main() {
-	// Автоматическое определение IP-адреса
-	ip, err := getLocalIP()
+	// Автоматическое определение внешнего IP-адреса
+	ip, err := getExternalIP()
 	if err != nil {
-		log.Fatalf("Не удалось определить IP-адрес: %v", err)
+		log.Fatalf("Не удалось определить внешний IP-адрес: %v", err)
 	}
 
 	comp := Computer{
-		IP: ip,
+		IP:   ip,
+		Port: "8081", // Указываем порт, который будет использоваться для подключения
 	}
 
 	registerComputer(comp)
 }
 
-// Функция для получения локального IP-адреса
-func getLocalIP() (string, error) {
-	addrs, err := net.InterfaceAddrs()
+// Функция для получения внешнего IP-адреса
+func getExternalIP() (string, error) {
+	// Используем внешний сервис для получения IP-адреса
+	resp, err := http.Get("https://api.ipify.org?format=text")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("ошибка при получении внешнего IP: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("сервер вернул ошибку: %s", resp.Status)
 	}
 
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String(), nil
-			}
-		}
+	ip, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("ошибка при чтении ответа: %v", err)
 	}
 
-	return "", fmt.Errorf("не удалось определить IP-адрес")
+	return string(ip), nil
 }
 
+// Регистрация компьютера на сервере
 func registerComputer(comp Computer) {
 	jsonData, err := json.Marshal(comp)
 	if err != nil {
@@ -61,7 +65,7 @@ func registerComputer(comp Computer) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Указываем IP-адрес сервера 37.46.230.242
+	// Указываем IP-адрес сервера
 	serverURL := "http://37.46.230.242:8080/register"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, serverURL, bytes.NewBuffer(jsonData))
 	if err != nil {
